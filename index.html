@@ -467,7 +467,7 @@
         </select>
         <select id="queryRange" onchange="filterAndRenderChips()">
           <option value="all-time">All-Time (历史总计)</option>
-          <option value="today">Today (今日)</option>
+          <option value="today">That day (当天)</option>
         </select>
         <input type="date" id="queryDate" />
         <button id="queryBtn" data-i18n="btn_query">Query</button>
@@ -552,7 +552,7 @@ const resources = {
     entry_error: "未找到该条记录",
     type_alliances: "🛡️ 联盟",
     type_players: "👤 玩家",
-    range_today: "今日",
+    range_today: "当天",
     range_all_time: "历史",
     file_list_error: "无法加载历史文件列表"
   },
@@ -585,7 +585,7 @@ const resources = {
     entry_error: "Entry not found",
     type_alliances: "🛡️ Alliances",
     type_players: "👤 Players",
-    range_today: "Today",
+    range_today: "That day",
     range_all_time: "All-Time",
     file_list_error: "Could not load file list"
   }
@@ -666,7 +666,7 @@ function filterAndRenderChips() {
       const dateDisplay = `${dateRaw.slice(0,4)}-${dateRaw.slice(4,6)}-${dateRaw.slice(6,8)}`;
       
       const typeLabel = selectedType === 'alliances' ? '联盟' : '玩家';
-      const rangeLabel = selectedRange === 'today' ? '今日' : '总计';
+      const rangeLabel = selectedRange === 'today' ? '当天' : '总计';
 
       const chip = document.createElement('div');
       chip.className = 'file-chip';
