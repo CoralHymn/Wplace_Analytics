@@ -553,8 +553,10 @@ const resources = {
     type_alliances: "🛡️ 联盟",
     type_players: "👤 玩家",
     range_today: "当天",
-    range_all_time: "历史",
-    file_list_error: "无法加载历史文件列表"
+    range_all_time: "总计",
+    file_list_error: "无法加载历史文件列表",
+    snapshot: "快照",
+    data_not_found: "暂无该范围下的快照数据，可以清空日期选项以查看可用数据"
   },
   en: {
     title: "WPlace Analytics",
@@ -587,7 +589,9 @@ const resources = {
     type_players: "👤 Players",
     range_today: "That day",
     range_all_time: "All-Time",
-    file_list_error: "Could not load file list"
+    file_list_error: "Could not load file list",
+    snapshot: "snapshot",
+    data_not_found: "No snapshot data is available for this period. Clear the date filter to view available data."
   }
 };
 
@@ -656,7 +660,7 @@ function filterAndRenderChips() {
     container.innerHTML = '';
 
     if (filtered.length === 0) {
-      container.innerHTML = `<div style="grid-column:1/-1; color:#999; font-size:12px; padding:10px;">暂无该分类下的快照数据</div>`;
+      container.innerHTML = `<div style="grid-column:1/-1; color:#999; font-size:12px; padding:10px;">${t("data_not_found")}</div>`;
       return;
     }
 
@@ -665,14 +669,14 @@ function filterAndRenderChips() {
       const dateRaw = match[3];
       const dateDisplay = `${dateRaw.slice(0,4)}-${dateRaw.slice(4,6)}-${dateRaw.slice(6,8)}`;
       
-      const typeLabel = selectedType === 'alliances' ? '联盟' : '玩家';
-      const rangeLabel = selectedRange === 'today' ? '当天' : '总计';
+      const typeLabel = selectedType === 'alliances' ? t("type_alliances") : t("type_players");
+      const rangeLabel = selectedRange === 'today' ? t("range_today") : t("range_all_time");
 
       const chip = document.createElement('div');
       chip.className = 'file-chip';
       chip.innerHTML = `
         <span class="chip-date">${dateDisplay}</span>
-        <span class="chip-info">${typeLabel} · ${rangeLabel}快照</span>
+        <span class="chip-info">${typeLabel} · ${rangeLabel} ${t("snapshot")}</span>
       `;
       
       chip.onclick = () => {
