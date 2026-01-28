@@ -138,6 +138,53 @@
     }
     .query-form button:hover { opacity: 0.9; }
 
+    .server-files-container {
+      margin-top: 16px;
+      border-top: 1px dashed rgba(0,0,0,0.1);
+      padding-top: 12px;
+      display: none; 
+    }
+    .file-chips {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+      justify-content: center;
+    }
+
+    /* 固定大小的卡片 */
+    .file-chip {
+      background: white;
+      border: 1px solid rgba(0,0,0,0.08);
+      padding: 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column; /* 纵向排列信息 */
+      align-items: flex-start;
+      height: 65px; /* 固定高度 */
+      box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+      box-sizing: border-box;
+    }
+
+    .file-chip:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 122, 255, 0.12);
+    }
+
+    .chip-date { 
+      font-weight: 700; 
+      font-size: 14px; 
+      color: var(--text-main); 
+      margin-bottom: 4px;
+    }
+
+    .chip-info { 
+      font-size: 11px; 
+      color: var(--text-sub); 
+    }
+
     .controls {
       display: flex;
       gap: 10px;
@@ -187,7 +234,7 @@
     
     .list-header {
       display: grid;
-      grid-template-columns: 50px 2fr 1fr 1fr;
+      grid-template-columns: 60px 2fr 1fr 1fr;
       padding: 16px 24px;
       font-weight: 700;
       color: white;
@@ -200,7 +247,7 @@
 
     .list-item {
       display: grid;
-      grid-template-columns: 50px 2fr 1fr 1fr;
+      grid-template-columns: 60px 2fr 1fr 1fr;
       padding: 16px 24px;
       align-items: center;
       border-bottom: 1px solid rgba(0,0,0,0.06);
@@ -412,17 +459,23 @@
       <p style="margin:0; font-weight:500;" data-i18n="query_main">Query Historical Data</p>
       <p style="margin:5px 0 16px; font-size:13px; color:#86868B;" data-i18n="query_sub">Select date, type and range</p>
       
-      <div class="query-form">
+      <div class="query-form" onchange="filterAndRenderChips()">
         <select id="queryType">
           <option value="alliances">Alliances (联盟)</option>
           <option value="players">Players (玩家)</option>
         </select>
-        <select id="queryRange">
+        <select id="queryRange" onchange="filterAndRenderChips()">
           <option value="all-time">All-Time (历史总计)</option>
           <option value="today">Today (今日)</option>
         </select>
         <input type="date" id="queryDate" />
         <button id="queryBtn" data-i18n="btn_query">Query</button>
+      </div>
+
+      <div id="serverFileList" class="server-files-container">
+        <p style="font-size: 12px; color: var(--text-sub); margin-bottom: 8px;" data-i18n="server_files">Available Data on Server:</p>
+        <div class="file-chips" id="fileChips">
+          </div>
       </div>
     </div>
 
@@ -476,6 +529,7 @@ const resources = {
     upload_sub: "支持 .json 格式",
     query_main: "查询历史数据",
     query_sub: "选择日期、类型和范围",
+    server_files: "可用历史数据:",
     btn_query: "查询",
     search_ph: "输入名称或ID搜索...",
     btn_search: "搜索",
@@ -494,7 +548,12 @@ const resources = {
     msg_no_result: "未找到结果",
     map_stat: "有效区域: {n} • 总像素: {t}",
     ctx_jump: "跳转至 Wplace 地图",
-    entry_error: "未找到该条记录"
+    entry_error: "未找到该条记录",
+    type_alliances: "🛡️ 联盟",
+    type_players: "👤 玩家",
+    range_today: "今日",
+    range_all_time: "历史",
+    file_list_error: "无法加载历史文件列表"
   },
   en: {
     title: "WPlace Analytics",
@@ -503,6 +562,7 @@ const resources = {
     upload_sub: "Supports .json format",
     query_main: "Query Historical Data",
     query_sub: "Select date, type and range",
+    server_files: "Available Data:",
     btn_query: "Query",
     search_ph: "Search by Name or ID...",
     btn_search: "Search",
@@ -521,7 +581,12 @@ const resources = {
     msg_no_result: "No results found",
     map_stat: "Regions: {n} • Total: {t}",
     ctx_jump: "Open in Wplace Map",
-    entry_error: "Entry not found"
+    entry_error: "Entry not found",
+    type_alliances: "🛡️ Alliances",
+    type_players: "👤 Players",
+    range_today: "Today",
+    range_all_time: "All-Time",
+    file_list_error: "Could not load file list"
   }
 };
 
@@ -545,7 +610,95 @@ function applyLanguage() {
     el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
   });
 }
-applyLanguage();
+
+// 页面初始化
+window.addEventListener('DOMContentLoaded', () => {
+    applyLanguage();
+    loadFileList(); 
+});
+
+let allServerFiles = []; // 存储从服务器获取的所有文件名
+
+// 修改初始化加载函数
+async function loadFileList() {
+  try {
+    const res = await fetch('data/file_list.json'); // 确保路径正确
+    if (!res.ok) return; 
+
+    allServerFiles = await res.json();
+    // 初始加载时执行一次筛选
+    filterAndRenderChips(); 
+  } catch (e) {
+    console.log("无法加载文件列表", e);
+  }
+}
+
+// 新增：根据当前选择器状态筛选并渲染卡片
+function filterAndRenderChips() {
+  const container = document.getElementById('fileChips');
+  const area = document.getElementById('serverFileList');
+  
+  // 获取当前选中的类型和范围和日期
+  const selectedType = document.getElementById('queryType').value;
+  const selectedRange = document.getElementById('queryRange').value;
+  const selectedDate = document.getElementById('queryDate').value;
+  // 1. 过滤符合当前选择的文件
+  const filtered = allServerFiles.filter(filename => {
+    const match = filename.match(/data\/wplace_([^_]+)_([^_]+)_(\d{8})\.json$/);
+    if (!match) return false;
+    return match[1] === selectedType && match[2] === selectedRange && match[3] === (selectedDate?selectedDate.replace(/-/g, ""):match[3]);
+  });
+
+  // 2. 渲染卡片
+  if (allServerFiles.length > 0) {
+    area.style.display = 'block';
+    container.innerHTML = '';
+
+    if (filtered.length === 0) {
+      container.innerHTML = `<div style="grid-column:1/-1; color:#999; font-size:12px; padding:10px;">暂无该分类下的快照数据</div>`;
+      return;
+    }
+
+    filtered.forEach(filename => {
+      const match = filename.match(/data\/wplace_([^_]+)_([^_]+)_(\d{8})\.json$/);
+      const dateRaw = match[3];
+      const dateDisplay = `${dateRaw.slice(0,4)}-${dateRaw.slice(4,6)}-${dateRaw.slice(6,8)}`;
+      
+      const typeLabel = selectedType === 'alliances' ? '联盟' : '玩家';
+      const rangeLabel = selectedRange === 'today' ? '今日' : '总计';
+
+      const chip = document.createElement('div');
+      chip.className = 'file-chip';
+      chip.innerHTML = `
+        <span class="chip-date">${dateDisplay}</span>
+        <span class="chip-info">${typeLabel} · ${rangeLabel}快照</span>
+      `;
+      
+      chip.onclick = () => {
+        document.getElementById('queryDate').value = dateDisplay;
+        loadDataFromUrl(`${filename}`);
+      };
+
+      container.appendChild(chip);
+    });
+  }
+}
+// 通用的 URL 数据加载函数
+async function loadDataFromUrl(url) {
+  document.getElementById('status-msg').innerText = t('msg_loading') + ` (${url})`;
+  try {
+    // 自动判断路径，如果文件名不包含路径则默认在当前目录
+    const path = url.includes('/') ? url : url; 
+    
+    const response = await fetch(path);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const json = await response.json();
+    processData(json);
+  } catch (err) {
+    document.getElementById('status-msg').innerText = t('msg_error') + `: ` + t('entry_error');
+    console.error(err);
+  }
+}
 
 // 上传区域逻辑
 const dropZone = document.getElementById('dropZone');
@@ -576,7 +729,7 @@ function handleFile(file) {
 }
 
 // 查询按钮逻辑
-document.getElementById('queryBtn').onclick = async () => {
+document.getElementById('queryBtn').onclick = () => {
   const type = document.getElementById('queryType').value;
   const range = document.getElementById('queryRange').value;
   const dateInput = document.getElementById('queryDate').value;
@@ -586,22 +739,11 @@ document.getElementById('queryBtn').onclick = async () => {
     return;
   }
 
-  const date = new Date(dateInput);
-  const dateStr = date.toISOString().slice(0,10).replace(/-/g, ''); // YYYYMMDD
-
+  // 这里的 dateInput 是 YYYY-MM-DD，转换成 YYYYMMDD
+  const dateStr = dateInput.replace(/-/g, ''); 
   const filename = `data/wplace_${type}_${range}_${dateStr}.json`;
 
-  document.getElementById('status-msg').innerText = t('msg_loading') + ` (${filename})`;
-
-  try {
-    const response = await fetch(filename);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const json = await response.json();
-    processData(json);
-  } catch (err) {
-    document.getElementById('status-msg').innerText = t('msg_error') + `: ` + t('entry_error');
-    console.error(err);
-  }
+  loadDataFromUrl(filename);
 };
 
 // 数据处理
@@ -778,6 +920,8 @@ function goHome() {
   const img = document.querySelector('.range-card img');
   if (img.complete && img.naturalHeight !== 0) {
     document.getElementById('rangeCard').style.display = 'block';
+  } else if (img) { // 如果图片存在但还没加载完或失败
+      img.onload = () => document.getElementById('rangeCard').style.display = 'block';
   }
   
   document.querySelector('header').style.marginBottom = '20px';
@@ -811,9 +955,9 @@ function regionIdToLatLng(regionId) {
 
 // 初始化时检查 range.png
 const img = document.querySelector('.range-card img');
-if (img.complete && img.naturalHeight !== 0) {
+if (img && img.complete && img.naturalHeight !== 0) {
   document.getElementById('rangeCard').style.display = 'block';
-} else {
+} else if (img) {
   img.onload = () => document.getElementById('rangeCard').style.display = 'block';
 }
 
