@@ -370,11 +370,142 @@
       to { opacity: 1; transform: scale(1); }
     }
 
+    .progress-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+    .progress-overlay.active {
+      display: flex;
+    }
+    .progress-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 9999;
+      display: none;
+    }
+    .progress-overlay.active {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .progress-container {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      min-width: 320px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+    .progress-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .progress-bar-wrapper {
+      width: 100%;
+      height: 8px;
+      background: #E5E5EA;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), #5AC8FA);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .progress-text {
+      text-align: center;
+      font-size: 14px;
+      color: var(--text-sub);
+    }
+
     ::-webkit-scrollbar { width: 8px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #D1D1D6; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #8E8E93; }
 
+    @media (max-width: 600px) {
+      #dashboard { padding: 16px 8px; }
+      header { margin-bottom: 16px; }
+
+    /* 进度条样式 */
+    .progress-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+    .progress-overlay.active {
+      display: flex;
+    }
+    .progress-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 9999;
+      display: none;
+    }
+    .progress-overlay.active {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .progress-container {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      min-width: 320px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+    .progress-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .progress-bar-wrapper {
+      width: 100%;
+      height: 8px;
+      background: #E5E5EA;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), #5AC8FA);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .progress-text {
+      text-align: center;
+      font-size: 14px;
+      color: var(--text-sub);
+    }
+    }
     @media (max-width: 600px) {
       #dashboard { padding: 16px 8px; }
       header { margin-bottom: 16px; }
@@ -461,6 +592,10 @@
       <p style="margin:5px 0 16px; font-size:13px; color:#86868B;" data-i18n="query_sub">Select date, type and range</p>
       
       <div class="query-form" onchange="filterAndRenderChips()">
+        <select id="scopeType" onchange="handleScopeChange()">
+          <option value="world">World (世界)</option>
+          <option value="range">China and surrounding areas (中国及周围地区)</option>
+        </select>
         <select id="queryType">
           <option value="alliances">Alliances (联盟)</option>
           <option value="players">Players (玩家)</option>
@@ -503,6 +638,17 @@
     </div>
   </div>
 
+  <!-- 进度条弹窗 -->
+  <div class="progress-overlay" id="progressOverlay">
+    <div class="progress-container" id="progressContainer">
+      <div class="progress-title" id="progressTitle" data-i18n="progress_loading">加载中...</div>
+      <div class="progress-bar-wrapper">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <div class="progress-text" id="progressText">0%</div>
+    </div>
+  </div>
+
   <div id="map-view">
     <div class="map-overlay glass">
       <div class="map-title" id="mapTitle">Loading...</div>
@@ -521,6 +667,100 @@
   </div>
 
 <script>
+// IndexedDB 操作
+const DB_NAME = 'WplaceCache';
+const DB_VERSION = 1;
+const STORE_NAME = 'worldData';
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'filename' });
+      }
+    };
+  });
+}
+
+async function getCachedZip(filename) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(filename);
+    request.onsuccess = () => resolve(request.result ? request.result.data : null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function cacheZip(filename, data) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.put({ filename, data, timestamp: Date.now() });
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// 进度条控制
+function showProgress(title) {
+  const overlay = document.getElementById('progressOverlay');
+  const titleEl = document.getElementById('progressTitle');
+  const bar = document.getElementById('progressBar');
+  const text = document.getElementById('progressText');
+  
+  titleEl.textContent = title || t('progress_loading');
+  bar.style.width = '0%';
+  text.textContent = '0%';
+  overlay.classList.add('active');
+}
+
+function updateProgress(percent) {
+  const bar = document.getElementById('progressBar');
+  const text = document.getElementById('progressText');
+  bar.style.width = percent + '%';
+  text.textContent = Math.round(percent) + '%';
+}
+
+function hideProgress() {
+  document.getElementById('progressOverlay').classList.remove('active');
+}
+
+// 解压 zip 文件
+async function unzipFile(zipData) {
+  // 使用 JSZip 库解压
+  const JSZip = window.JSZip || await loadJSZip();
+  const zip = await JSZip.loadAsync(zipData);
+  
+  // 查找 JSON 文件
+  const jsonFiles = Object.keys(zip.files).filter(name => name.endsWith('.json'));
+  if (jsonFiles.length === 0) throw new Error('No JSON file found in zip');
+  
+  const jsonFile = zip.files[jsonFiles[0]];
+  const content = await jsonFile.async('text');
+  return JSON.parse(content);
+}
+
+function loadJSZip() {
+  return new Promise((resolve, reject) => {
+    if (window.JSZip) {
+      resolve(window.JSZip);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    script.onload = () => resolve(window.JSZip);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
 // 多语言配置
 const resources = {
   zh: {
@@ -556,7 +796,13 @@ const resources = {
     range_all_time: "总计",
     file_list_error: "无法加载历史文件列表",
     snapshot: "快照",
-    data_not_found: "暂无该范围下的快照数据，可以清空日期选项以查看可用数据"
+    data_not_found: "暂无该范围下的快照数据，可以清空日期选项以查看可用数据",
+    progress_loading: "加载中...",
+    progress_json: "加载 JSON 数据...",
+    progress_check_cache: "检查缓存...",
+    progress_from_cache: "从缓存加载...",
+    progress_download: "下载世界数据...",
+    progress_unzip: "解压数据...",
   },
   en: {
     title: "WPlace Analytics",
@@ -591,7 +837,13 @@ const resources = {
     range_all_time: "All-Time",
     file_list_error: "Could not load file list",
     snapshot: "snapshot",
-    data_not_found: "No snapshot data is available for this period. Clear the date filter to view available data."
+    data_not_found: "No snapshot data is available for this period. Clear the date filter to view available data.",
+    progress_loading: "Loading...",
+    progress_json: "Loading JSON data...",
+    progress_check_cache: "Checking cache...",
+    progress_from_cache: "Loading from cache...",
+    progress_download: "Downloading world data...",
+    progress_unzip: "Extracting data...",
   }
 };
 
@@ -638,21 +890,48 @@ async function loadFileList() {
   }
 }
 
+// 新增：处理作用域切换
+function handleScopeChange() {
+  const scope = document.getElementById('scopeType').value;
+  const rangeCard = document.getElementById('rangeCard');
+    // 图中选区模式：如果图片可用，则显示
+    const img = document.querySelector('.range-card img');
+    if (img && img.complete && img.naturalHeight !== 0) {
+      rangeCard.style.display = 'block';
+    }  
+  filterAndRenderChips();
+}
+
 // 新增：根据当前选择器状态筛选并渲染卡片
 function filterAndRenderChips() {
   const container = document.getElementById('fileChips');
   const area = document.getElementById('serverFileList');
   
-  // 获取当前选中的类型和范围和日期
+  // 获取当前选中的类型、范围、日期和作用域
+  const selectedScope = document.getElementById('scopeType').value;
   const selectedType = document.getElementById('queryType').value;
   const selectedRange = document.getElementById('queryRange').value;
   const selectedDate = document.getElementById('queryDate').value;
-  // 1. 过滤符合当前选择的文件
-  const filtered = allServerFiles.filter(filename => {
-    const match = filename.match(/data\/wplace_([^_]+)_([^_]+)_(\d{8})\.json$/);
-    if (!match) return false;
-    return match[1] === selectedType && match[2] === selectedRange && match[3] === (selectedDate?selectedDate.replace(/-/g, ""):match[3]);
-  });
+  
+  let filtered = [];
+  const img = document.querySelector("#rangeCard img");
+  if (selectedScope === 'world') {
+    // 世界模式：筛选 World 目录下的文件
+    img.src = "images/World.png";
+    filtered = allServerFiles.filter(filename => {
+      const match = filename.match(/World\/wplace_([^_]+)_([^_]+)_(\d{8})\.zip$/);
+      if (!match) return false;
+      return match[1] === selectedType && match[2] === selectedRange && match[3] === (selectedDate ? selectedDate.replace(/-/g, "") : match[3]);
+    });
+  } else {
+    // 图中选区模式：筛选 data 目录下的文件
+    img.src = "images/range.png";
+    filtered = allServerFiles.filter(filename => {
+      const match = filename.match(/data\/wplace_([^_]+)_([^_]+)_(\d{8})\.json$/);
+      if (!match) return false;
+      return match[1] === selectedType && match[2] === selectedRange && match[3] === (selectedDate ? selectedDate.replace(/-/g, "") : match[3]);
+    });
+  }
 
   // 2. 渲染卡片
   if (allServerFiles.length > 0) {
@@ -665,12 +944,20 @@ function filterAndRenderChips() {
     }
 
     filtered.forEach(filename => {
-      const match = filename.match(/data\/wplace_([^_]+)_([^_]+)_(\d{8})\.json$/);
-      const dateRaw = match[3];
-      const dateDisplay = `${dateRaw.slice(0,4)}-${dateRaw.slice(4,6)}-${dateRaw.slice(6,8)}`;
+      let dateRaw, dateDisplay, typeLabel, rangeLabel;
       
-      const typeLabel = selectedType === 'alliances' ? t("type_alliances") : t("type_players");
-      const rangeLabel = selectedRange === 'today' ? t("range_today") : t("range_all_time");
+      if (selectedScope === 'world') {
+        const match = filename.match(/World\/wplace_([^_]+)_([^_]+)_(\d{8})\.zip$/);
+        dateRaw = match[3];
+        dateDisplay = `${dateRaw.slice(0,4)}-${dateRaw.slice(4,6)}-${dateRaw.slice(6,8)}`;
+      } else {
+        const match = filename.match(/data\/wplace_([^_]+)_([^_]+)_(\d{8})\.json$/);
+        dateRaw = match[3];
+        dateDisplay = `${dateRaw.slice(0,4)}-${dateRaw.slice(4,6)}-${dateRaw.slice(6,8)}`;
+      }
+      
+      typeLabel = selectedType === 'alliances' ? t("type_alliances") : t("type_players");
+      rangeLabel = selectedRange === 'today' ? t("range_today") : t("range_all_time");
 
       const chip = document.createElement('div');
       chip.className = 'file-chip';
@@ -681,7 +968,7 @@ function filterAndRenderChips() {
       
       chip.onclick = () => {
         document.getElementById('queryDate').value = dateDisplay;
-        loadDataFromUrl(`${filename}`);
+        loadDataFromUrl(filename, selectedScope);
       };
 
       container.appendChild(chip);
@@ -689,18 +976,125 @@ function filterAndRenderChips() {
   }
 }
 // 通用的 URL 数据加载函数
-async function loadDataFromUrl(url) {
-  document.getElementById('status-msg').innerText = t('msg_loading') + ` (${url})`;
+async function loadDataFromUrl(url, scope = 'range') {
   try {
-    // 自动判断路径，如果文件名不包含路径则默认在当前目录
-    const path = url.includes('/') ? url : url; 
+    if (scope === 'world' && url.endsWith('.zip')) {
+      // 世界模式：加载 zip 文件
+      await loadWorldZipData(url);
+    } else {
+      // 图中选区模式：加载 JSON 文件
+      showProgress(t('progress_json'));
+      document.getElementById('status-msg').innerText = t('msg_loading') + ` (${url})`;
+      
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const reader = response.body.getReader();
+      const contentLength = +response.headers.get('Content-Length');
+      
+      let receivedLength = 0;
+      let chunks = [];
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        chunks.push(value);
+        receivedLength += value.length;
+        
+        if (contentLength) {
+          updateProgress((receivedLength / contentLength) * 100);
+        }
+      }
+      
+      const blob = new Blob(chunks);
+      const text = await blob.text();
+      const json = JSON.parse(text);
+      
+      hideProgress();
+      processData(json);
+    }
+  } catch (err) {
+    hideProgress();
+    document.getElementById('status-msg').innerText = t('msg_error') + `: ` + err.message;
+    console.error(err);
+  }
+}
+
+// 加载世界模式的 zip 数据
+async function loadWorldZipData(url) {
+  try {
+    showProgress(t('progress_check_cache'));
     
-    const response = await fetch(path);
+    // 从 URL 提取文件名
+    const filename = url.split('/').pop();
+    
+    // 检查缓存
+    updateProgress(10);
+    let zipData = await getCachedZip(filename);
+    
+    if (zipData) {
+      // 从缓存加载
+      showProgress(t('progress_from_cache'));
+      updateProgress(50);
+      const json = await unzipFile(zipData);
+      updateProgress(90);
+      hideProgress();
+      processData(json);
+      return;
+    }
+    
+    // 从网络下载
+    showProgress(t('progress_download'));
+    document.getElementById('status-msg').innerText = t('msg_loading') + ` (World)`;
+    
+    // 构建完整 URL
+    const fullUrl = url.startsWith('http') ? url : `https://raw.githubusercontent.com/lin-alg/Wplace_Pumpkin/main/${url}`;
+    
+    const response = await fetch(fullUrl);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const json = await response.json();
+    
+    const reader = response.body.getReader();
+    const contentLength = +response.headers.get('Content-Length');
+    
+    let receivedLength = 0;
+    let chunks = [];
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      chunks.push(value);
+      receivedLength += value.length;
+      
+      if (contentLength) {
+        // 下载进度占 0-70%
+        updateProgress((receivedLength / contentLength) * 70);
+      }
+    }
+    
+    zipData = new Uint8Array(receivedLength);
+    let position = 0;
+    for (let chunk of chunks) {
+      zipData.set(chunk, position);
+      position += chunk.length;
+    }
+    
+    // 解压
+    showProgress(t('progress_unzip'));
+    updateProgress(75);
+    const json = await unzipFile(zipData);
+    
+    // 缓存
+    updateProgress(85);
+    await cacheZip(filename, zipData);
+    
+    updateProgress(100);
+    hideProgress();
     processData(json);
   } catch (err) {
-    document.getElementById('status-msg').innerText = t('msg_error') + `: ` + t('entry_error');
+    hideProgress();
+    document.getElementById('status-msg').innerText = t('msg_error') + `: ` + err.message;
     console.error(err);
   }
 }
@@ -735,6 +1129,7 @@ function handleFile(file) {
 
 // 查询按钮逻辑
 document.getElementById('queryBtn').onclick = () => {
+  const scope = document.getElementById('scopeType').value;
   const type = document.getElementById('queryType').value;
   const range = document.getElementById('queryRange').value;
   const dateInput = document.getElementById('queryDate').value;
@@ -746,9 +1141,15 @@ document.getElementById('queryBtn').onclick = () => {
 
   // 这里的 dateInput 是 YYYY-MM-DD，转换成 YYYYMMDD
   const dateStr = dateInput.replace(/-/g, ''); 
-  const filename = `data/wplace_${type}_${range}_${dateStr}.json`;
+  
+  let filename;
+  if (scope === 'world') {
+    filename = `World/wplace_${type}_${range}_${dateStr}.zip`;
+  } else {
+    filename = `data/wplace_${type}_${range}_${dateStr}.json`;
+  }
 
-  loadDataFromUrl(filename);
+  loadDataFromUrl(filename, scope);
 };
 
 // 数据处理
@@ -921,12 +1322,13 @@ function goHome() {
   document.getElementById('dropZone').style.display = 'block';
   document.getElementById('queryZone').style.display = 'block';
   
-  // 检查并显示range图片
+  // 检查当前作用域并显示 range 图片
+  const scope = document.getElementById('scopeType').value;
   const img = document.querySelector('.range-card img');
-  if (img.complete && img.naturalHeight !== 0) {
+  if (img && img.complete && img.naturalHeight !== 0) {
     document.getElementById('rangeCard').style.display = 'block';
-  } else if (img) { // 如果图片存在但还没加载完或失败
-      img.onload = () => document.getElementById('rangeCard').style.display = 'block';
+  } else if (img) {
+    img.onload = () => document.getElementById('rangeCard').style.display = 'block';
   }
   
   document.querySelector('header').style.marginBottom = '20px';
