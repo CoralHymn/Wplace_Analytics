@@ -10,6 +10,15 @@
 
     gtag('config', 'G-MD90VJQYME');
   </script>
+  <script> 
+  window.onload = function() { 
+    const seen = localStorage.getItem("seen");
+    if(!seen) {
+      alert(t("alert_message")); 
+      localStorage.setItem("seen",true)
+    }
+  };
+  </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>WPlace Analytics</title>
@@ -803,6 +812,7 @@ const resources = {
     progress_from_cache: "从缓存加载...",
     progress_download: "下载世界数据...",
     progress_unzip: "解压数据...",
+    alert_message: "本网站仅爬取每个城市区块排行前五十的联盟或用户数据，不能保证100%准确。"
   },
   en: {
     title: "WPlace Analytics",
@@ -844,6 +854,7 @@ const resources = {
     progress_from_cache: "Loading from cache...",
     progress_download: "Downloading world data...",
     progress_unzip: "Extracting data...",
+    alert_message: "This website only crawls the top 50 alliances or users in each city block, and cannot guarantee 100% accuracy."
   }
 };
 
