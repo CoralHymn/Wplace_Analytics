@@ -1,4 +1,5 @@
 [
+  "data/wplace_players_today_20260206.json",
   "data/wplace_players_today_20260205.json",
   "data/wplace_players_today_20260203.json",
   "data/wplace_players_today_20260131.json",
@@ -7,6 +8,7 @@
   "data/wplace_players_today_20260128.json",
   "data/wplace_players_today_20260127.json",
   "data/wplace_players_all-time_20260128.json",
+  "data/wplace_alliances_today_20260206.json",
   "data/wplace_alliances_today_20260205.json",
   "data/wplace_alliances_today_20260203.json",
   "data/wplace_alliances_today_20260202.json",
