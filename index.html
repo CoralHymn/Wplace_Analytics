@@ -746,16 +746,16 @@
 
       <div class="query-form" onchange="filterAndRenderChips()">
         <select id="scopeType" onchange="handleScopeChange()">
-          <option value="world">World (世界)</option>
           <option value="range">China and surrounding areas (中国及周围地区)</option>
+          <option value="world">World (世界)</option>
         </select>
         <select id="queryType">
           <option value="alliances">Alliances (联盟)</option>
           <option value="players">Players (玩家)</option>
         </select>
         <select id="queryRange" onchange="filterAndRenderChips()">
-          <option value="all-time">All-Time (历史总计)</option>
           <option value="today">That day (当天)</option>
+          <option value="all-time">All-Time (历史总计)</option>
         </select>
         <input type="date" id="queryDate" />
         <button id="queryBtn" data-i18n="btn_query">Query</button>
