@@ -761,6 +761,18 @@
         <button id="queryBtn" data-i18n="btn_query">Query</button>
       </div>
 
+      <!-- ID快速搜索区域 -->
+      <div class="query-form" style="margin-top: 16px; border-top: 1px dashed rgba(0,0,0,0.1); padding-top: 16px;">
+        <input type="text" id="quickSearchId" placeholder="输入ID快速查找日期..." style="flex: 1; max-width: 200px;" />
+        <button onclick="quickSearchById()" style="background: #34C759;">🔍 查找日期</button>
+      </div>
+
+      <!-- 快速搜索结果区域 -->
+      <div id="quickSearchResults" class="server-files-container" style="display: none;">
+        <p style="font-size: 12px; color: var(--text-sub); margin-bottom: 8px;">找到以下日期包含该ID的活动：</p>
+        <div class="file-chips" id="quickSearchChips"></div>
+      </div>
+
       <div id="serverFileList" class="server-files-container">
         <p style="font-size: 12px; color: var(--text-sub); margin-bottom: 8px;" data-i18n="server_files">Available Data
           on Server:</p>
@@ -1142,6 +1154,123 @@
         });
       }
     }
+    // 快速通过ID搜索日期
+    async function quickSearchById() {
+      const searchId = document.getElementById('quickSearchId').value.trim();
+      if (!searchId) {
+        alert(currentLang === 'zh' ? '请输入ID' : 'Please enter an ID');
+        return;
+      }
+
+      const scope = document.getElementById('scopeType').value;
+      const type = document.getElementById('queryType').value;
+      
+      // 只显示当天的数据
+      showProgress(currentLang === 'zh' ? '正在搜索日期...' : 'Searching dates...');
+      
+      try {
+        // 获取所有当天的文件列表
+        let todayFiles = allServerFiles.filter(filename => {
+          if (scope === 'world') {
+            const match = filename.match(/World\/wplace_([^_]+)_([^_]+)_(\d{8})\.zip$/);
+            return match && match[1] === type && match[2] === 'today';
+          } else {
+            const match = filename.match(/data\/wplace_([^_]+)_([^_]+)_(\d{8})\.json$/);
+            return match && match[1] === type && match[2] === 'today';
+          }
+        });
+
+        // 按日期排序（从新到旧）
+        todayFiles.sort((a, b) => {
+          const dateA = a.match(/(\d{8})\.(json|zip)$/)[1];
+          const dateB = b.match(/(\d{8})\.(json|zip)$/)[1];
+          return dateB.localeCompare(dateA);
+        });
+
+        const foundDates = [];
+        let searchedCount = 0;
+
+        // 逐个检查文件是否包含该ID
+        for (const filename of todayFiles) {
+          searchedCount++;
+          updateProgress((searchedCount / todayFiles.length) * 100);
+          
+          try {
+            let data;
+            if (filename.endsWith('.zip')) {
+              // 世界模式：需要下载并解压
+              const fullUrl = filename.startsWith('http') ? filename : `https://raw.githubusercontent.com/lin-alg/Wplace_Pumpkin/main/${filename}`;
+              const response = await fetch(fullUrl);
+              const zipData = await response.arrayBuffer();
+              const JSZip = window.JSZip || await loadJSZip();
+              const zip = await JSZip.loadAsync(zipData);
+              const jsonFiles = Object.keys(zip.files).filter(name => name.endsWith('.json'));
+              if (jsonFiles.length > 0) {
+                const content = await zip.files[jsonFiles[0]].async('text');
+                data = JSON.parse(content);
+              }
+            } else {
+              // JSON模式：直接加载
+              const response = await fetch(filename);
+              data = await response.json();
+            }
+
+            // 检查是否包含该ID
+            if (data && data[searchId]) {
+              // 提取日期
+              const dateMatch = filename.match(/(\d{8})\.(json|zip)$/);
+              if (dateMatch) {
+                const dateStr = dateMatch[1];
+                const formattedDate = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
+                foundDates.push({
+                  date: formattedDate,
+                  filename: filename,
+                  pixels: data[searchId].totalPixelsPainted || 0
+                });
+              }
+            }
+          } catch (err) {
+            console.error(`Error loading ${filename}:`, err);
+          }
+        }
+
+        hideProgress();
+
+        // 显示结果
+        const resultsContainer = document.getElementById('quickSearchResults');
+        const chipsContainer = document.getElementById('quickSearchChips');
+        
+        if (foundDates.length === 0) {
+          alert(currentLang === 'zh' ? `未找到ID为 ${searchId} 的活动记录` : `No activity found for ID ${searchId}`);
+          resultsContainer.style.display = 'none';
+        } else {
+          resultsContainer.style.display = 'block';
+          chipsContainer.innerHTML = '';
+          
+          foundDates.forEach(item => {
+            const chip = document.createElement('div');
+            chip.className = 'file-chip';
+            chip.innerHTML = `
+              <span class="chip-date">${item.date}</span>
+              <span class="chip-info">像素数: ${item.pixels.toLocaleString()}</span>
+            `;
+            chip.onclick = () => {
+              // 设置日期并加载数据
+              document.getElementById('queryDate').value = item.date;
+              loadDataFromUrl(item.filename, scope);
+              // 隐藏快速搜索结果
+              resultsContainer.style.display = 'none';
+            };
+            chipsContainer.appendChild(chip);
+          });
+        }
+      } catch (err) {
+        hideProgress();
+        console.error('Quick search error:', err);
+        alert(currentLang === 'zh' ? '搜索失败: ' + err.message : 'Search failed: ' + err.message);
+      }
+    }
+
     // 通用的 URL 数据加载函数
     async function loadDataFromUrl(url, scope = 'range') {
       try {
